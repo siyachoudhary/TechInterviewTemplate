@@ -10,7 +10,6 @@ import java.util.List;
 public class TaskManager {
 
     private final List<Task> tasks = new ArrayList<>();
-    private int nextId = 1;
 
     // Reused as the default tag list when a caller doesn't supply tags.
     private static final List<String> DEFAULT_TAGS = new ArrayList<>();
@@ -20,10 +19,17 @@ public class TaskManager {
     }
 
     public Task addTask(String title, int priority, List<String> tags) {
-        Task task = new Task(nextId, title, priority, tags);
+        Task task = new Task(nextId(), title, priority, tags);
         tasks.add(task);
-        nextId++;
         return task;
+    }
+
+    private int nextId() {
+        return tasks.size() + 1;
+    }
+
+    public void removeTask(int id) {
+        tasks.removeIf(task -> task.getId() == id);
     }
 
     public Task getTask(int id) {
@@ -33,6 +39,10 @@ public class TaskManager {
             }
         }
         return null;
+    }
+
+    public int count() {
+        return tasks.size() - 1;
     }
 
     public Task completeTask(int id) {

@@ -7,9 +7,10 @@ comfortable in.
 
 The interview has two parts:
 
-1. **Debugging (~30 min)** — The library ships with a failing test suite. Several bugs
-   have been planted. Your job is to find and fix them until the tests are green.
-2. **Feature (~25 min)** — Once tests pass, you'll add a new feature. This part is
+1. **Debugging (~35 min)** — The library ships with a failing test suite. Six bugs have
+   been planted (four easy, two subtle). Your job is to find and fix them until the tests
+   are green.
+2. **Feature (~20 min)** — Once tests pass, you'll add a new feature. This part is
    open-ended: use any external resources you like (docs, Google, StackOverflow, AI
    assistants such as Copilot/ChatGPT/Claude, etc.). We care about how you approach the
    problem, not whether you memorized an API.
@@ -23,8 +24,8 @@ hypotheses, verify them, and communicate as you go. **Think out loud.**
 
 A tiny in-memory task tracker. Tasks have an `id`, `title`, `priority` (1 = low,
 2 = medium, 3 = high), a list of `tags`, and a `completed` flag. The `TaskManager` class
-lets you add tasks, look them up, complete them, filter by tag, list pending tasks, and
-sort by priority.
+lets you add tasks, look them up, complete them, remove them, count them, filter by tag,
+list pending tasks, and sort by priority.
 
 The two implementations behave identically — same classes, same methods, same bugs.
 
@@ -62,7 +63,7 @@ mvn test                            # compiles and runs the tests
 
 ---
 
-## Part 1 — Debugging (~30 min)
+## Part 1 — Debugging (~35 min)
 
 1. Run the test suite. You should see multiple failures.
 2. Read the failing tests in `tests/` (Python) or `src/test/` (Java) to understand the
@@ -71,16 +72,18 @@ mvn test                            # compiles and runs the tests
    `src/main/java/com/example/taskmanager/`) and fix the bugs.
 4. Re-run until everything is green.
 
-There are **four** planted bugs. They range from a classic language footgun to an
-inverted condition. Fix the source, **not** the tests — the tests describe correct
-behavior.
+There are **six** planted bugs: **four are easy to spot** from a single failing test
+(a loud exception or an obviously-wrong result), and **two are subtler** — they only
+surface on an edge case, so the failing test won't point straight at the buggy line. The
+test file groups them into "easier" and "harder" sections to help you pace yourself. Fix
+the source, **not** the tests — the tests describe correct behavior.
 
 **As you work, tell us:** what does the failing test expect, what did you observe, what's
 your hypothesis, and how did the fix confirm it?
 
 ---
 
-## Part 2 — Add a Feature (~25 min)
+## Part 2 — Add a Feature (~20 min)
 
 Once the suite is green, pick **one** feature below (or propose your own) and implement
 it, **including at least one test**. This half is intentionally open — reach for whatever

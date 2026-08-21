@@ -20,19 +20,26 @@ class Task:
 class TaskManager:
     def __init__(self):
         self.tasks = []
-        self._next_id = 1
 
     def add_task(self, title, priority=1, tags=[]):
-        task = Task(self._next_id, title, priority, tags)
+        task = Task(self._next_id(), title, priority, tags)
         self.tasks.append(task)
-        self._next_id += 1
         return task
+
+    def _next_id(self):
+        return len(self.tasks) + 1
+
+    def remove_task(self, task_id):
+        self.tasks = [task for task in self.tasks if task.id != task_id]
 
     def get_task(self, task_id):
         for task in self.tasks:
             if task.id == task_id:
                 return task
         return None
+
+    def count(self):
+        return len(self.tasks) - 1
 
     def complete_task(self, task_id):
         task = self.tasks[task_id]
