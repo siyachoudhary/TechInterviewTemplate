@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+# Java / Maven
+target/
+*.class
+
+# Editor / OS
+.idea/
+.vscode/
+*.iml
+.DS_Store
