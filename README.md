@@ -7,8 +7,7 @@ comfortable in.
 
 The interview has two parts:
 
-1. **Debugging (~35 min)** — The library ships with a failing test suite. Six bugs have
-   been planted (four easy, two subtle). Your job is to find and fix them until the tests
+1. **Debugging (~35 min)** — The library ships with a failing test suite. A few bugs have been planted. Your job is to find and fix them until the tests
    are green.
 2. **Feature (~20 min)** — Once tests pass, you'll add a new feature. This part is
    open-ended: use any external resources you like (docs, Google, StackOverflow, AI
@@ -27,7 +26,7 @@ A tiny in-memory task tracker. Tasks have an `id`, `title`, `priority` (1 = low,
 lets you add tasks, look them up, complete them, remove them, count them, filter by tag,
 list pending tasks, and sort by priority.
 
-The two implementations behave identically — same classes, same methods, same bugs.
+The two languege implementations behave identically — same classes, same methods, same bugs.
 
 ---
 
