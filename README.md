@@ -5,14 +5,16 @@ task-management library called **TaskFlow**. There are two identical implementat
 the same repo — **Python** and **Java** — so pick whichever language you're most
 comfortable in.
 
-The interview has two parts:
+The interview is really **one main task with an optional bonus**:
 
-1. **Debugging (~35 min)** — The library ships with a failing test suite. A few bugs have been planted. Your job is to find and fix them until the tests
-   are green.
-2. **Feature (~20 min)** — Once tests pass, you'll add a new feature. This part is
-   open-ended: use any external resources you like (docs, Google, StackOverflow, AI
-   assistants such as Copilot/ChatGPT/Claude, etc.). We care about how you approach the
-   problem, not whether you memorized an API.
+1. **Debugging (the whole interview)** — The library ships with a failing test suite. Six
+   bugs have been planted. Your job is to find and fix them until the tests are green. None
+   of them are one-liners that scream at you — they're the kind of plausible-looking code
+   that quietly does the wrong thing, so take your time and reason carefully.
+2. **Add a Feature (extra credit)** — *Only if you finish the debugging comfortably early*
+   (roughly, all tests green in under 30 minutes) we'll spend the remaining time adding a
+   small feature together. This is a bonus, not a requirement — a thorough, well-narrated
+   debugging pass is the main thing we're evaluating.
 
 We're not looking for perfection. We want to see how you read unfamiliar code, form
 hypotheses, verify them, and communicate as you go. **Think out loud.**
@@ -62,7 +64,7 @@ mvn test                            # compiles and runs the tests
 
 ---
 
-## Part 1 — Debugging (~35 min)
+## Part 1 — Debugging (the main task)
 
 1. Run the test suite. You should see multiple failures.
 2. Read the failing tests in `tests/` (Python) or `src/test/` (Java) to understand the
@@ -71,36 +73,111 @@ mvn test                            # compiles and runs the tests
    `src/main/java/com/example/taskmanager/`) and fix the bugs.
 4. Re-run until everything is green.
 
-There are **six** planted bugs: **four are easy to spot** from a single failing test
-(a loud exception or an obviously-wrong result), and **two are subtler** — they only
-surface on an edge case, so the failing test won't point straight at the buggy line. The
-test file groups them into "easier" and "harder" sections to help you pace yourself. Fix
-the source, **not** the tests — the tests describe correct behavior.
+There are **six** planted bugs, and **none of them are loud** — there are no crashes or
+wildly-wrong values to point the way. Each is a plausible implementation that quietly
+disagrees with the method's docstring: an off-by-one in the wrong direction, a query that
+mutates state it shouldn't, a sort that isn't stable, shared/aliased data, an
+identity/id scheme that breaks under mutation, and so on. The **docstring on each method
+states what it is supposed to do** — the bug is always a mismatch between that description
+and the code.
+
+The test file groups the bugs into two waves: *Wave 1* is catchable from a careful read of
+the docstring; *Wave 2* only bites on an edge case (ordering, aliasing, a side effect, or a
+sequence of operations), so the failing assertion may name a value the buggy line never
+touches. Fix the source, **not** the tests — the tests describe correct behavior.
 
 **As you work, tell us:** what does the failing test expect, what did you observe, what's
 your hypothesis, and how did the fix confirm it?
 
 ---
 
-## Part 2 — Add a Feature (~20 min)
+## Part 2 — Add a Feature (extra credit — only if you finish early)
 
-Once the suite is green, pick **one** feature below (or propose your own) and implement
-it, **including at least one test**. This half is intentionally open — reach for whatever
-tools and references you'd normally use.
+**This part is a bonus.** We only reach it if you've finished the debugging comfortably
+early — as a rough rule of thumb, all tests green in **under 30 minutes** with time to
+spare. If debugging takes the whole session, that's completely fine; a careful, well-
+narrated debugging pass is what we're really evaluating. Don't rush Part 1 to get here.
+
+If we do have time: pick **one** feature below (or propose your own) and implement it,
+**including at least one test**. This half is intentionally open — reach for whatever tools
+and references you'd normally use (docs, Google, StackOverflow, AI assistants such as
+Copilot/ChatGPT/Claude, etc.). We care about how you approach the problem, not whether you
+memorized an API.
 
 Suggested features (in rough order of scope):
 
-- **Due dates & overdue list.** Add an optional due date to tasks and a
-  `get_overdue(today)` / `getOverdue(today)` method returning uncompleted tasks past due.
 - **Keyword search.** Add `search(keyword)` that returns tasks whose title contains the
   keyword, case-insensitively.
 - **Tag summary.** Add `tag_counts()` / `tagCounts()` returning a map of tag → number of
   tasks with that tag.
 - **Priority bump.** Add `bump_priority(id)` / `bumpPriority(id)` that raises a task's
   priority by one level (capped at high), and decide what should happen at the cap.
+- **Due dates & overdue list.** Add an optional due date to tasks and a
+  `get_overdue(today)` / `getOverdue(today)` method returning uncompleted tasks past due.
 
 Walk us through your design choices, edge cases, and how you'd extend it further with more
 time.
+
+### Worked example: adding `search(keyword)`
+
+To make the expectations concrete, here's exactly what a good "extra credit" answer to the
+**keyword search** feature looks like end-to-end. (You don't have to pick this one — it's
+just a reference for the level of finish we're after: a small, clean method *plus* a test
+that pins down the interesting edge cases.)
+
+**1. Add the method to `TaskManager`.** Reuse the existing style; think about the edge
+cases (case-insensitivity, no matches):
+
+```python
+# taskmanager/manager.py
+def search(self, keyword):
+    """Return every task whose title contains `keyword`, case-insensitively.
+
+    An empty keyword matches nothing; matching is a substring test, not whole-word.
+    """
+    if not keyword:
+        return []
+    needle = keyword.lower()
+    return [task for task in self.tasks if needle in task.title.lower()]
+```
+
+```java
+// TaskManager.java
+/** Return every task whose title contains `keyword`, case-insensitively. */
+public List<Task> search(String keyword) {
+    List<Task> matches = new ArrayList<>();
+    if (keyword == null || keyword.isEmpty()) {
+        return matches;
+    }
+    String needle = keyword.toLowerCase();
+    for (Task task : tasks) {
+        if (task.getTitle().toLowerCase().contains(needle)) {
+            matches.add(task);
+        }
+    }
+    return matches;
+}
+```
+
+**2. Add a test that proves it — including the edge cases**, not just the happy path:
+
+```python
+# tests/test_manager.py
+def test_search_is_case_insensitive_substring_match():
+    tm = TaskManager()
+    tm.add_task("Write REPORT")
+    tm.add_task("review PR")
+    tm.add_task("report to manager")
+    titles = sorted(t.title for t in tm.search("report"))
+    assert titles == ["Write REPORT", "report to manager"], "search matches case-insensitively, anywhere in the title"
+    assert tm.search("") == [], "an empty keyword matches nothing"
+    assert tm.search("xyz") == [], "a keyword with no matches returns an empty list"
+```
+
+**3. Talk us through it:** why case-insensitive, why an empty keyword returns nothing
+rather than everything, and how you'd extend it (search tags too? rank by relevance? a
+`limit`?). That narration — the edge cases you *chose* to handle and why — is the point of
+the exercise, not the line count.
 
 ---
 

@@ -1,6 +1,7 @@
 package com.example.taskmanager;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 
@@ -56,33 +57,46 @@ public class TaskManager {
         return null;
     }
 
-    /** Return how many tasks are currently tracked. */
+    /** Return how many tasks are currently tracked — completed or not. */
     public int count() {
-        return tasks.size() - 1;
+        int n = 0;
+        for (Task task : tasks) {
+            if (!task.isCompleted()) {
+                n++;
+            }
+        }
+        return n;
     }
 
-    /** Find the task with the given id, mark it completed, and return it. */
+    /**
+     * Find the task with the given id, mark it completed, and return it.
+     *
+     * Completing a task is idempotent: completing one that is already completed leaves it
+     * completed.
+     */
     public Task completeTask(int id) {
-        Task task = tasks.get(id);
-        task.setCompleted(true);
+        Task task = getTask(id);
+        task.setCompleted(!task.isCompleted());
         return task;
     }
 
-    /** Return every task that is NOT yet completed. */
+    /**
+     * Return every task that is NOT yet completed. This is a read-only query: it must not
+     * modify the manager's stored task list.
+     */
     public List<Task> getPending() {
-        List<Task> pending = new ArrayList<>();
-        for (Task task : tasks) {
-            if (task.isCompleted()) {
-                pending.add(task);
-            }
-        }
-        return pending;
+        tasks.removeIf(Task::isCompleted);
+        return tasks;
     }
 
-    /** Return the tasks ordered by priority, highest priority first. */
+    /**
+     * Return the tasks ordered by priority, highest priority first. Tasks that share a
+     * priority keep their original insertion order (a stable sort).
+     */
     public List<Task> sortByPriority() {
         List<Task> sorted = new ArrayList<>(tasks);
         sorted.sort(Comparator.comparingInt(Task::getPriority));
+        Collections.reverse(sorted);
         return sorted;
     }
 

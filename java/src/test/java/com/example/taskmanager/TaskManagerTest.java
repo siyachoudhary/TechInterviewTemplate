@@ -1,6 +1,7 @@
 package com.example.taskmanager;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.ArrayList;
@@ -12,58 +13,80 @@ import org.junit.jupiter.api.Test;
  * Behavioral tests for TaskFlow. These describe the *intended* behavior.
  * Fix the source in TaskManager.java until they all pass — do not change the tests.
  *
- * There are 6 planted bugs: 4 are easy to spot from a single failing test, and 2 are
- * subtler (they only bite on an edge case). The tests are grouped accordingly.
+ * There are 6 planted bugs. None of them announce themselves with a crash or an obviously
+ * absurd value — every one is a plausible-looking implementation that quietly disagrees with
+ * the Javadoc. Read the method's Javadoc (it states the intended behavior), then read the
+ * code, and find the mismatch. The tests come in two waves:
  *
- * Each assertion carries a message describing the intended behavior, so a failure tells
- * you what the method is *supposed* to do — not just how two values differ.
+ *   - Wave 1: a careful read of the Javadoc is enough to spot the mismatch.
+ *   - Wave 2: the bug only shows on an edge case (ordering, aliasing, a side effect, or a
+ *     sequence of operations), so the failing assertion may be about a value the buggy line
+ *     never names.
+ *
+ * Each assertion carries a message describing the intended behavior.
  */
 class TaskManagerTest {
 
     // -----------------------------------------------------------------------
-    // The 4 easier bugs
+    // Wave 1 — read the Javadoc carefully
     // -----------------------------------------------------------------------
 
     @Test
-    void addTaskReturnsTaskWithIncrementingIds() {
-        // Sanity check on the happy path: adding tasks assigns sequential ids (1, 2, ...)
-        // and remembers the title. This one should pass out of the box.
-        TaskManager tm = new TaskManager();
-        Task a = tm.addTask("write report");
-        Task b = tm.addTask("review PR");
-        assertEquals(1, a.getId(), "the first task added should get id 1");
-        assertEquals(2, b.getId(), "the second task added should get id 2 (ids increment by 1)");
-        assertEquals("write report", a.getTitle(), "addTask should store the title it was given");
-    }
-
-    @Test
-    void countReflectsNumberOfTasks() {
-        // count() should simply report how many tasks are tracked: 0 when empty,
-        // then 2 after adding two.
+    void countIncludesCompletedTasks() {
+        // count() reports how many tasks are TRACKED, regardless of whether they are done.
+        // Completing a task doesn't make it stop existing, so the count must not drop.
         TaskManager tm = new TaskManager();
         assertEquals(0, tm.count(), "count() on an empty manager should be 0");
         tm.addTask("a");
         tm.addTask("b");
-        assertEquals(2, tm.count(), "count() should equal the number of tasks added (2 here)");
+        tm.getTask(1).setCompleted(true);   // mark one done directly (not via completeTask)
+        assertEquals(2, tm.count(),
+                "count() should report every tracked task, completed or not (2 here); completing "
+                        + "a task must not remove it from the count");
     }
 
     @Test
-    void completeTaskMarksCompleted() {
-        // Add one task (it gets id 1), then complete it BY ITS ID. Completing task id 1
-        // should flip its completed flag to true, and that change should stick.
+    void completeTaskIsIdempotent() {
+        // Completing a task marks it done. Completing it AGAIN must leave it done — the flag
+        // is set to true, not flipped.
         TaskManager tm = new TaskManager();
         tm.addTask("write report");
-        Task task = tm.completeTask(1);
-        assertTrue(task.isCompleted(),
-                "completeTask(id) should find the task with that id and mark it completed");
+        Task first = tm.completeTask(1);
+        assertTrue(first.isCompleted(),
+                "completeTask(id) should find the task with that id, mark it completed, and return it");
+        tm.completeTask(1);   // completing an already-completed task
         assertTrue(tm.getTask(1).isCompleted(),
-                "the completion must persist on the stored task, not just the returned copy");
+                "completeTask should be idempotent: completing an already-completed task leaves it "
+                        + "completed, it must not toggle back to pending");
+    }
+
+    // -----------------------------------------------------------------------
+    // Wave 2 — edge cases, ordering, aliasing, and side effects
+    // -----------------------------------------------------------------------
+
+    @Test
+    void sortByPriorityIsStableHighFirst() {
+        // sortByPriority returns highest priority first. Among tasks that TIE on priority, the
+        // original insertion order must be preserved (a stable sort): high-1 was added before
+        // high-2, so high-1 must come first.
+        TaskManager tm = new TaskManager();
+        tm.addTask("high-1", 3, new ArrayList<>());
+        tm.addTask("high-2", 3, new ArrayList<>());
+        tm.addTask("low", 1, new ArrayList<>());
+        List<String> ordered = tm.sortByPriority().stream()
+                .map(Task::getTitle)
+                .collect(Collectors.toList());
+        assertEquals(List.of("high-1", "high-2", "low"), ordered,
+                "sortByPriority() should order by priority highest-first AND keep insertion order "
+                        + "among ties, so [high-1, high-2, low] — not a reversal that flips the two "
+                        + "equal-priority tasks");
     }
 
     @Test
-    void getPendingExcludesCompleted() {
-        // Add two tasks, mark the first ('a') completed directly, then ask for pending
-        // work. "Pending" means not-yet-completed, so only 'b' should come back.
+    void getPendingIsNonDestructive() {
+        // getPending is a read-only query. Asking for the pending tasks must NOT delete the
+        // completed ones from the manager — the returned list looks right either way, so the
+        // tell is whether the completed task is still there afterwards.
         TaskManager tm = new TaskManager();
         tm.addTask("a");
         tm.addTask("b");
@@ -72,29 +95,14 @@ class TaskManagerTest {
                 .map(Task::getTitle)
                 .collect(Collectors.toList());
         assertEquals(List.of("b"), pending,
-                "getPending() should return only NOT-completed tasks; 'a' was completed, so "
-                        + "only 'b' should remain");
+                "getPending() should return only not-completed tasks; 'a' was completed, so only "
+                        + "'b' should come back");
+        assertNotNull(tm.getTask(1),
+                "getPending() must not modify the stored tasks; task 'a' was only completed, not "
+                        + "removed, so it should still be retrievable afterwards");
+        assertNotNull(tm.getTask(2),
+                "the pending task 'b' must also still be tracked after calling getPending()");
     }
-
-    @Test
-    void sortByPriorityHighFirst() {
-        // Add tasks out of priority order. sortByPriority() should return them ordered by
-        // priority with the HIGHEST (3) first, so: high, medium, low.
-        TaskManager tm = new TaskManager();
-        tm.addTask("low", 1, new ArrayList<>());
-        tm.addTask("high", 3, new ArrayList<>());
-        tm.addTask("medium", 2, new ArrayList<>());
-        List<String> ordered = tm.sortByPriority().stream()
-                .map(Task::getTitle)
-                .collect(Collectors.toList());
-        assertEquals(List.of("high", "medium", "low"), ordered,
-                "sortByPriority() should order tasks by priority HIGHEST first (3 -> 2 -> 1), "
-                        + "so the order should be high, medium, low");
-    }
-
-    // -----------------------------------------------------------------------
-    // The 2 harder bugs (edge cases)
-    // -----------------------------------------------------------------------
 
     @Test
     void tasksAddedWithoutTagsDoNotShareAList() {
@@ -131,8 +139,20 @@ class TaskManagerTest {
     }
 
     // -----------------------------------------------------------------------
-    // Correct helper (kept as a clean reference / used by the feature half)
+    // Correct helpers (these pass out of the box — clean reference points)
     // -----------------------------------------------------------------------
+
+    @Test
+    void addTaskReturnsTaskWithIncrementingIds() {
+        // Sanity check on the happy path: adding tasks assigns sequential ids (1, 2, ...)
+        // and remembers the title. This one should pass out of the box.
+        TaskManager tm = new TaskManager();
+        Task a = tm.addTask("write report");
+        Task b = tm.addTask("review PR");
+        assertEquals(1, a.getId(), "the first task added should get id 1");
+        assertEquals(2, b.getId(), "the second task added should get id 2 (ids increment by 1)");
+        assertEquals("write report", a.getTitle(), "addTask should store the title it was given");
+    }
 
     @Test
     void filterByTag() {

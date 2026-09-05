@@ -3,11 +3,17 @@
 These describe the *intended* behavior. Fix the source in taskmanager/manager.py
 until they all pass — do not change the tests.
 
-There are 6 planted bugs: 4 are easy to spot from a single failing test, and 2 are
-subtler (they only bite on an edge case). The tests are grouped accordingly.
+There are 6 planted bugs. None of them announce themselves with a crash or an obviously
+absurd value — every one is a plausible-looking implementation that quietly disagrees with
+the docstring. Read the method's docstring (it states the intended behavior), then read the
+code, and find the mismatch. The tests are grouped in two waves:
 
-Each assertion carries a message describing the intended behavior, so a failure tells
-you what the method is *supposed* to do — not just how two values differ.
+  * Wave 1 — a careful read of the docstring is enough to spot the mismatch.
+  * Wave 2 — the bug only shows on an edge case (ordering, aliasing, a side effect, or a
+    sequence of operations), so the failing assertion may be about a value the buggy line
+    never names.
+
+Each assertion carries a message describing the intended behavior.
 """
 
 import pytest
@@ -16,82 +22,86 @@ from taskmanager import TaskManager
 
 
 # ---------------------------------------------------------------------------
-# The 4 easier bugs
+# Wave 1 — read the docstring carefully
 # ---------------------------------------------------------------------------
 
-def test_add_task_returns_task_with_incrementing_ids():
-    # Sanity check on the happy path: adding tasks assigns sequential ids (1, 2, ...)
-    # and remembers the title. This one should pass out of the box.
-    tm = TaskManager()
-    a = tm.add_task("write report")
-    b = tm.add_task("review PR")
-    assert a.id == 1, "the first task added should get id 1"
-    assert b.id == 2, "the second task added should get id 2 (ids increment by 1)"
-    assert a.title == "write report", "add_task should store the title it was given"
-
-
-def test_count_reflects_number_of_tasks():
-    # count() should simply report how many tasks are tracked: 0 when empty,
-    # then 2 after adding two.
+def test_count_includes_completed_tasks():
+    # count() reports how many tasks are TRACKED, regardless of whether they are done.
+    # Completing a task doesn't make it stop existing, so the count must not drop.
     tm = TaskManager()
     assert tm.count() == 0, "count() on an empty manager should be 0"
     tm.add_task("a")
     tm.add_task("b")
-    assert tm.count() == 2, "count() should equal the number of tasks added (2 here)"
+    tm.get_task(1).completed = True   # mark one done directly (no reliance on complete_task)
+    assert tm.count() == 2, (
+        "count() should report every tracked task, completed or not (2 here); completing a "
+        "task must not remove it from the count"
+    )
 
 
-def test_complete_task_marks_completed():
-    # Add one task (it gets id 1), then complete it BY ITS ID. Completing task id 1
-    # should flip its `completed` flag to True and that change should stick.
+def test_complete_task_is_idempotent():
+    # Completing a task marks it done. Completing it AGAIN must leave it done — the flag is
+    # set to True, not flipped.
     tm = TaskManager()
     tm.add_task("write report")
-    task = tm.complete_task(1)
-    assert task.completed is True, (
-        "complete_task(id) should find the task with that id and mark it completed, "
-        "then return it"
+    first = tm.complete_task(1)
+    assert first.completed is True, (
+        "complete_task(id) should find the task with that id, mark it completed, and return it"
     )
+    tm.complete_task(1)   # completing an already-completed task
     assert tm.get_task(1).completed is True, (
-        "the completion must persist on the stored task, not just the returned copy"
+        "complete_task should be idempotent: completing an already-completed task leaves it "
+        "completed, it must not toggle back to pending"
     )
 
 
-def test_get_pending_excludes_completed():
-    # Add two tasks, mark the first ('a') completed directly, then ask for pending work.
-    # "Pending" means not-yet-completed, so only 'b' should come back.
+# ---------------------------------------------------------------------------
+# Wave 2 — edge cases, ordering, aliasing, and side effects
+# ---------------------------------------------------------------------------
+
+def test_sort_by_priority_is_stable_high_first():
+    # sort_by_priority returns highest priority first. Among tasks that TIE on priority, the
+    # original insertion order must be preserved (a stable sort): high-1 was added before
+    # high-2, so high-1 must come first.
+    tm = TaskManager()
+    tm.add_task("high-1", priority=3)
+    tm.add_task("high-2", priority=3)
+    tm.add_task("low", priority=1)
+    ordered = [t.title for t in tm.sort_by_priority()]
+    assert ordered == ["high-1", "high-2", "low"], (
+        "sort_by_priority() should order by priority highest-first AND keep insertion order "
+        "among ties, so ['high-1', 'high-2', 'low'] — not a reversal that flips the two "
+        "equal-priority tasks"
+    )
+
+
+def test_get_pending_is_non_destructive():
+    # get_pending is a read-only query. Asking for the pending tasks must NOT delete the
+    # completed ones from the manager — the returned list looks right either way, so the
+    # tell is whether the completed task is still there afterwards.
     tm = TaskManager()
     tm.add_task("a")
     tm.add_task("b")
     tm.get_task(1).completed = True
-    pending_titles = [t.title for t in tm.get_pending()]
-    assert pending_titles == ["b"], (
-        "get_pending() should return only NOT-completed tasks; task 'a' was completed, "
-        "so only 'b' should remain"
+    pending = [t.title for t in tm.get_pending()]
+    assert pending == ["b"], (
+        "get_pending() should return only not-completed tasks; 'a' was completed, so only "
+        "'b' should come back"
+    )
+    assert tm.get_task(1) is not None, (
+        "get_pending() must not modify the stored tasks; task 'a' was only completed, not "
+        "removed, so it should still be retrievable afterwards"
+    )
+    assert tm.get_task(2) is not None, (
+        "the pending task 'b' must also still be tracked after calling get_pending()"
     )
 
-
-def test_sort_by_priority_high_first():
-    # Add tasks out of priority order. sort_by_priority() should return them ordered
-    # by priority with the HIGHEST (3) first, so: high, medium, low.
-    tm = TaskManager()
-    tm.add_task("low", priority=1)
-    tm.add_task("high", priority=3)
-    tm.add_task("medium", priority=2)
-    ordered = [t.title for t in tm.sort_by_priority()]
-    assert ordered == ["high", "medium", "low"], (
-        "sort_by_priority() should order tasks by priority HIGHEST first "
-        "(3 -> 2 -> 1), so the order should be high, medium, low"
-    )
-
-
-# ---------------------------------------------------------------------------
-# The 2 harder bugs (edge cases)
-# ---------------------------------------------------------------------------
 
 def test_tasks_added_without_tags_do_not_share_a_list():
     """Adding a tag to one task must not affect another task added without tags."""
-    # Two tasks are created WITHOUT passing tags, so each should own a separate,
-    # independent empty list. We then tag only task 'a' and check task 'b' is untouched.
-    # If both tasks secretly share the same list object, tagging 'a' will also tag 'b'.
+    # Two tasks are created WITHOUT passing tags, so each should own a separate, independent
+    # empty list. We then tag only task 'a' and check task 'b' is untouched. If both tasks
+    # secretly share the same list object, tagging 'a' will also tag 'b'.
     tm = TaskManager()
     a = tm.add_task("task a")
     b = tm.add_task("task b")
@@ -127,8 +137,19 @@ def test_ids_are_never_reused_after_removal():
 
 
 # ---------------------------------------------------------------------------
-# Correct helpers (kept as clean reference points / used by the feature half)
+# Correct helpers (these pass out of the box — clean reference points)
 # ---------------------------------------------------------------------------
+
+def test_add_task_returns_task_with_incrementing_ids():
+    # Sanity check on the happy path: adding tasks assigns sequential ids (1, 2, ...) and
+    # remembers the title. This one should pass out of the box.
+    tm = TaskManager()
+    a = tm.add_task("write report")
+    b = tm.add_task("review PR")
+    assert a.id == 1, "the first task added should get id 1"
+    assert b.id == 2, "the second task added should get id 2 (ids increment by 1)"
+    assert a.title == "write report", "add_task should store the title it was given"
+
 
 def test_filter_by_tag():
     # filter_by_tag returns every task carrying the given tag. Tasks 'a' and 'c' are

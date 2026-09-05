@@ -52,22 +52,33 @@ class TaskManager:
         return None
 
     def count(self):
-        """Return how many tasks are currently tracked."""
-        return len(self.tasks) - 1
+        """Return how many tasks are currently tracked — completed or not."""
+        return sum(1 for task in self.tasks if not task.completed)
 
     def complete_task(self, task_id):
-        """Find the task with the given id, mark it completed, and return it."""
-        task = self.tasks[task_id]
-        task.completed = True
+        """Find the task with the given id, mark it completed, and return it.
+
+        Completing a task is idempotent: completing one that is already completed
+        leaves it completed.
+        """
+        task = self.get_task(task_id)
+        task.completed = not task.completed
         return task
 
     def get_pending(self):
-        """Return every task that is NOT yet completed."""
-        return [task for task in self.tasks if task.completed]
+        """Return every task that is NOT yet completed.
+
+        This is a read-only query: it must not modify the manager's stored task list.
+        """
+        self.tasks = [task for task in self.tasks if not task.completed]
+        return self.tasks
 
     def sort_by_priority(self):
-        """Return the tasks ordered by priority, highest priority first."""
-        return sorted(self.tasks, key=lambda task: task.priority)
+        """Return the tasks ordered by priority, highest priority first.
+
+        Tasks that share a priority keep their original insertion order (a stable sort).
+        """
+        return list(reversed(sorted(self.tasks, key=lambda task: task.priority)))
 
     def filter_by_tag(self, tag):
         """Return every task whose tags include the given tag."""
