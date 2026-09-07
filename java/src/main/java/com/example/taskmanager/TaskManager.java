@@ -19,6 +19,10 @@ public class TaskManager {
     // The tag list a task gets when the caller doesn't supply one.
     private static final List<String> DEFAULT_TAGS = new ArrayList<>();
 
+    public List<Task> getTasks() {
+        return tasks;
+    }
+
     /**
      * Create a new task with no tags, store it, and return it. A task added without tags
      * should get its own, independent empty tag list.
@@ -109,5 +113,27 @@ public class TaskManager {
             }
         }
         return matches;
+    }
+
+    /** Remove every completed task from the manager. Tasks still pending are kept. */
+    public void removeCompleted() {
+        for (int i = 0; i < tasks.size(); i++) {
+            if (tasks.get(i).isCompleted()) {
+                tasks.remove(i);
+            }
+        }
+    }
+
+    /**
+     * Return the mean priority across all tracked tasks as an exact value. The average keeps
+     * its fractional part: two tasks at priorities 3 and 2 average to exactly 2.5, not 2.
+     * (Assume there is at least one task.)
+     */
+    public double averagePriority() {
+        int sum = 0;
+        for (Task task : tasks) {
+            sum += task.getPriority();
+        }
+        return sum / tasks.size();
     }
 }

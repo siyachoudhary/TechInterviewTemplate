@@ -7,7 +7,7 @@ comfortable in.
 
 The interview is really **one main task with an optional bonus**:
 
-1. **Debugging (the whole interview)** — The library ships with a failing test suite. Six
+1. **Debugging (the whole interview)** — The library ships with a failing test suite. Eight
    bugs have been planted. Your job is to find and fix them until the tests are green. None
    of them are one-liners that scream at you — they're the kind of plausible-looking code
    that quietly does the wrong thing, so take your time and reason carefully.
@@ -26,9 +26,10 @@ hypotheses, verify them, and communicate as you go. **Think out loud.**
 A tiny in-memory task tracker. Tasks have an `id`, `title`, `priority` (1 = low,
 2 = medium, 3 = high), a list of `tags`, and a `completed` flag. The `TaskManager` class
 lets you add tasks, look them up, complete them, remove them, count them, filter by tag,
-list pending tasks, and sort by priority.
+list pending tasks, sort by priority, clear out the completed ones, and report the average
+priority.
 
-The two languege implementations behave identically — same classes, same methods, same bugs.
+The two language implementations behave identically — same classes, same methods, same bugs.
 
 ---
 
@@ -73,18 +74,20 @@ mvn test                            # compiles and runs the tests
    `src/main/java/com/example/taskmanager/`) and fix the bugs.
 4. Re-run until everything is green.
 
-There are **six** planted bugs, and **none of them are loud** — there are no crashes or
+There are **eight** planted bugs, and **none of them are loud** — there are no crashes or
 wildly-wrong values to point the way. Each is a plausible implementation that quietly
 disagrees with the method's docstring: an off-by-one in the wrong direction, a query that
 mutates state it shouldn't, a sort that isn't stable, shared/aliased data, an
-identity/id scheme that breaks under mutation, and so on. The **docstring on each method
-states what it is supposed to do** — the bug is always a mismatch between that description
-and the code.
+identity/id scheme that breaks under mutation, a loop that mutates the list it is walking, a
+truncated average, and so on. The **docstring on each method states what it is supposed to
+do** — the bug is (almost) always a mismatch between that description and the code.
 
 The test file groups the bugs into two waves: *Wave 1* is catchable from a careful read of
-the docstring; *Wave 2* only bites on an edge case (ordering, aliasing, a side effect, or a
-sequence of operations), so the failing assertion may name a value the buggy line never
-touches. Fix the source, **not** the tests — the tests describe correct behavior.
+the docstring; *Wave 2* only bites on an edge case (ordering, aliasing, a side effect, an
+adjacent pair removed in one pass, a truncated average, or a sequence of operations), so the
+failing assertion may name a value the buggy line never touches. Note that not every method
+is broken, and one buggy method can still look correct on a friendly input. Fix the source,
+**not** the tests — the tests describe correct behavior.
 
 **As you work, tell us:** what does the failing test expect, what did you observe, what's
 your hypothesis, and how did the fix confirm it?

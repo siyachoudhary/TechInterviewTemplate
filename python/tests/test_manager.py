@@ -3,15 +3,16 @@
 These describe the *intended* behavior. Fix the source in taskmanager/manager.py
 until they all pass — do not change the tests.
 
-There are 6 planted bugs. None of them announce themselves with a crash or an obviously
+There are 8 planted bugs. None of them announce themselves with a crash or an obviously
 absurd value — every one is a plausible-looking implementation that quietly disagrees with
 the docstring. Read the method's docstring (it states the intended behavior), then read the
 code, and find the mismatch. The tests are grouped in two waves:
 
   * Wave 1 — a careful read of the docstring is enough to spot the mismatch.
-  * Wave 2 — the bug only shows on an edge case (ordering, aliasing, a side effect, or a
-    sequence of operations), so the failing assertion may be about a value the buggy line
-    never names.
+  * Wave 2 — the bug only shows on an edge case (ordering, aliasing, a side effect, an
+    adjacent pair removed in one pass, a truncated average, or a sequence of operations), so
+    the failing assertion may be about a value the buggy line never names. Note: not every
+    method is broken, and one buggy method can still look fine on a friendly input.
 
 Each assertion carries a message describing the intended behavior.
 """
@@ -134,6 +135,45 @@ def test_ids_are_never_reused_after_removal():
     assert len(existing_ids) == len(set(existing_ids)), (
         f"every task must have a unique id, but got duplicates: {existing_ids}"
     )
+
+
+def test_remove_completed_drops_every_done_task():
+    # remove_completed removes EVERY completed task, however many there are. NOTE: the order
+    # they are added in is load-bearing — keep the two completed tasks adjacent.
+    tm = TaskManager()
+    tm.add_task("a")
+    tm.add_task("b")
+    tm.add_task("c")
+    tm.get_task(1).completed = True   # 'a' done
+    tm.get_task(2).completed = True   # 'b' done, right after 'a'
+    tm.remove_completed()
+    titles = sorted(t.title for t in tm.tasks)
+    assert titles == ["c"], (
+        "remove_completed() should drop EVERY completed task (both 'a' and 'b'), leaving only "
+        f"the pending 'c'; got {titles}"
+    )
+
+
+def test_average_priority_keeps_the_fraction():
+    # The mean priority is an exact value: priorities 3 and 2 average to 2.5, not 2. An
+    # average that floors/truncates to a whole number loses the fraction.
+    tm = TaskManager()
+    tm.add_task("high", priority=3)
+    tm.add_task("medium", priority=2)
+    assert tm.average_priority() == 2.5, (
+        "average_priority() of priorities 3 and 2 is exactly (3 + 2) / 2 = 2.5; integer "
+        "division would truncate this to 2"
+    )
+
+
+def test_average_priority_of_uniform_tasks():
+    # A friendly input for the same method: when the mean lands on a whole number, even a
+    # truncating implementation looks correct. This one passes out of the box — it is NOT
+    # proof that average_priority() is right (see test_average_priority_keeps_the_fraction).
+    tm = TaskManager()
+    tm.add_task("a", priority=2)
+    tm.add_task("b", priority=2)
+    assert tm.average_priority() == 2, "the mean of 2 and 2 is 2"
 
 
 # ---------------------------------------------------------------------------
