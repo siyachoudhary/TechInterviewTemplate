@@ -13,15 +13,16 @@ import org.junit.jupiter.api.Test;
  * Behavioral tests for TaskFlow. These describe the *intended* behavior.
  * Fix the source in TaskManager.java until they all pass — do not change the tests.
  *
- * There are 6 planted bugs. None of them announce themselves with a crash or an obviously
+ * There are 8 planted bugs. None of them announce themselves with a crash or an obviously
  * absurd value — every one is a plausible-looking implementation that quietly disagrees with
  * the Javadoc. Read the method's Javadoc (it states the intended behavior), then read the
  * code, and find the mismatch. The tests come in two waves:
  *
  *   - Wave 1: a careful read of the Javadoc is enough to spot the mismatch.
- *   - Wave 2: the bug only shows on an edge case (ordering, aliasing, a side effect, or a
- *     sequence of operations), so the failing assertion may be about a value the buggy line
- *     never names.
+ *   - Wave 2: the bug only shows on an edge case (ordering, aliasing, a side effect, an
+ *     adjacent pair removed in one pass, a truncated average, or a sequence of operations),
+ *     so the failing assertion may be about a value the buggy line never names. Note: not
+ *     every method is broken, and one buggy method can still look fine on a friendly input.
  *
  * Each assertion carries a message describing the intended behavior.
  */
@@ -136,6 +137,48 @@ class TaskManagerTest {
         assertEquals(4, d.getId(),
                 "ids must never be reused: after adding 3 tasks the next id should be 4, even "
                         + "though one task was removed (id must not be derived from list size)");
+    }
+
+    @Test
+    void removeCompletedDropsEveryDoneTask() {
+        // removeCompleted removes EVERY completed task. NOTE: the order they are added in is
+        // load-bearing — keep the two completed tasks adjacent.
+        TaskManager tm = new TaskManager();
+        tm.addTask("a");
+        tm.addTask("b");
+        tm.addTask("c");
+        tm.getTask(1).setCompleted(true);   // 'a' done
+        tm.getTask(2).setCompleted(true);   // 'b' done, right after 'a'
+        tm.removeCompleted();
+        List<String> titles = tm.getTasks().stream()
+                .map(Task::getTitle)
+                .sorted()
+                .collect(Collectors.toList());
+        assertEquals(List.of("c"), titles,
+                "removeCompleted() should drop EVERY completed task (both 'a' and 'b'), leaving only 'c'");
+    }
+
+    @Test
+    void averagePriorityKeepsTheFraction() {
+        // The mean priority is an exact value: priorities 3 and 2 average to 2.5, not 2. An
+        // average computed with integer division truncates the fraction.
+        TaskManager tm = new TaskManager();
+        tm.addTask("high", 3, new ArrayList<>());
+        tm.addTask("medium", 2, new ArrayList<>());
+        assertEquals(2.5, tm.averagePriority(), 1e-9,
+                "averagePriority() of priorities 3 and 2 is exactly (3 + 2) / 2.0 = 2.5; integer "
+                        + "division would truncate this to 2");
+    }
+
+    @Test
+    void averagePriorityOfUniformTasks() {
+        // A friendly input for the same method: when the mean lands on a whole number, even a
+        // truncating implementation looks correct. This one passes out of the box — it is NOT
+        // proof that averagePriority() is right (see averagePriorityKeepsTheFraction).
+        TaskManager tm = new TaskManager();
+        tm.addTask("a", 2, new ArrayList<>());
+        tm.addTask("b", 2, new ArrayList<>());
+        assertEquals(2.0, tm.averagePriority(), 1e-9, "the mean of 2 and 2 is 2");
     }
 
     // -----------------------------------------------------------------------

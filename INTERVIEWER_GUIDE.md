@@ -8,7 +8,7 @@ repo (or hand them a branch/zip without this file).
 | Segment | Time | Notes |
 |---------|------|-------|
 | Intro + setup | 5 min | Make sure their env runs the tests. |
-| Part 1: Debugging | ~45 min | 6 subtle bugs. This is the main event. |
+| Part 1: Debugging | ~45 min | 8 subtle bugs. This is the main event. |
 | Part 2: Feature (**extra credit**) | only if they finish debugging with time to spare (rough bar: all green in < 30 min) | Open-ended, tools allowed. |
 | Wrap-up | ~5 min | Reflection / extension questions. |
 
@@ -17,10 +17,12 @@ loud failures** (no stack traces, no `count() == -1`). Every bug is a plausible
 implementation that quietly disagrees with the docstring. Expect a strong candidate
 (e.g. someone with big-tech internship experience) to still need a real ~25–40 minutes and
 to reason, not pattern-match. The feature half is a **bonus** — only reach for it if
-they've cleared all six comfortably early. Don't let a candidate skimp on narration to race
+they've cleared all eight comfortably early. Don't let a candidate skimp on narration to race
 into it.
 
-Shipped state: **6 failed, 2 passed.** Fully fixed: **8 passed.**
+Shipped state: **8 failed, 3 passed.** Fully fixed: **11 passed.** (One of the passing
+tests, `average_priority_of_uniform_tasks`, passes *despite* bug #8 — it's a deliberate red
+herring, not proof the method is correct.)
 
 ## Wave 1 — a careful docstring read catches these
 
@@ -85,9 +87,30 @@ Shipped state: **6 failed, 2 passed.** Fully fixed: **8 passed.**
    - Caught by: `test_ids_are_never_reused_after_removal` / `idsAreNeverReusedAfterRemoval`.
    - Why it's hard: every basic add/list test passes; only add → remove → add exposes it.
 
+7. **`remove_completed` mutates the list while iterating it.** It loops over `self.tasks`
+   (Java: an index loop) and calls `self.tasks.remove(task)` mid-iteration. When two
+   completed tasks are adjacent, removing the first shifts the second into the just-vacated
+   slot, which the loop then skips — so an adjacent completed task survives.
+   - **Fix:** don't mutate while iterating — rebuild the list
+     (`self.tasks = [t for t in self.tasks if not t.completed]`) or iterate over a copy;
+     Java: `tasks.removeIf(Task::isCompleted)`.
+   - Caught by: `test_remove_completed_drops_every_done_task` / `removeCompletedDropsEveryDoneTask`.
+   - Why it's hard: the failing case needs the two completed tasks to be *adjacent* (the test
+     notes the add-order is load-bearing); a non-adjacent layout would pass.
+
+8. **`average_priority` truncates the mean.** Python uses `//` (floor division); Java uses
+   `sum / tasks.size()` with both operands `int` (integer division). Either way the
+   fractional part is dropped.
+   - **Fix:** true division — Python `sum(...) / len(...)`; Java `(double) sum / tasks.size()`.
+   - Caught by: `test_average_priority_keeps_the_fraction` / `averagePriorityKeepsTheFraction`.
+   - **Red herring:** `average_priority_of_uniform_tasks` (mean of 2 and 2) passes even with
+     the bug, because the true mean is already a whole number. A candidate who sees that test
+     green may wrongly conclude the method is fine — nudge them to try a non-integer mean.
+
 `filter_by_tag` / `filterByTag` and `get_task` / `getTask` are **correct** on purpose
-(clean reference points; the two passing tests exercise the add happy-path and
-`filter_by_tag`). `remove_task` / `removeTask` is also correct and is used by bug #6's test.
+(clean reference points; the three passing tests exercise the add happy-path,
+`filter_by_tag`, and the uniform-average red herring). `remove_task` / `removeTask` is also
+correct and is used by bug #6's test.
 
 ## What good looks like
 

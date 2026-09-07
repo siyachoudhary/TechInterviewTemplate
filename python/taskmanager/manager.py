@@ -83,3 +83,17 @@ class TaskManager:
     def filter_by_tag(self, tag):
         """Return every task whose tags include the given tag."""
         return [task for task in self.tasks if tag in task.tags]
+
+    def remove_completed(self):
+        """Remove every completed task from the manager. Tasks still pending are kept."""
+        for task in self.tasks:
+            if task.completed:
+                self.tasks.remove(task)
+
+    def average_priority(self):
+        """Return the mean priority across all tracked tasks as an exact value.
+
+        The average keeps its fractional part: two tasks at priorities 3 and 2 average to
+        exactly 2.5, not 2. (Assume there is at least one task.)
+        """
+        return sum(task.priority for task in self.tasks) // len(self.tasks)
